@@ -884,15 +884,21 @@ void mythen::acquisitionTask()
               // printf("Acquisition start - expect %d\n",nread_expect);
               // Work on the cases of what are you getting from getstatus
               do {
+                size_t thisRead=1;
                 nread=0;
                 if (readmode_==0)
                   strcpy(outString_, "-readoutraw");
                 else
                   strcpy(outString_, "-readout");
 
-                status = pasynOctetSyncIO->writeRead(pasynUserMeter_, outString_, strlen(outString_), (char *)detArray_,
-                                        nread_expect, M1K_TIMEOUT, &nwrite, &nread, &eomReason);
-
+                status = pasynOctetSyncIO->flush(pasynUserMeter_);
+                if (status == asynSuccess) status = pasynOctetSyncIO->write
+                  (pasynUserMeter_, outString_, strlen(outString_), M1K_TIMEOUT, &nwrite);
+                while (status == asynSuccess && thisRead && nread < nread_expect) {
+                  status = pasynOctetSyncIO->read(pasynUserMeter_, (char *)detArray_ + nread,
+                    nread_expect - nread, M1K_TIMEOUT, &thisRead, &eomReason);
+                  nread += thisRead;
+                }
                 //printf("nread_expected=%d, nread=%d, status=%d, timeout=%f, eomReason=%d\n",
                 //        (int)nread_expect, (int)nread, status, M1K_TIMEOUT, eomReason);
 

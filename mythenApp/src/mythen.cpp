@@ -967,9 +967,9 @@ epicsInt32 mythen::dataCallback(epicsInt32 *pData)
 
     if (pData == NULL || pData[0] < 0) return(0); 
 
-    dims[0] = MAX_DIMS;
+    dims[0] = this->nmodules*MAX_DIMS;
     dims[1] = 1;
-    totalBytes = this->nmodules*MAX_DIMS*sizeof(epicsInt32);
+    totalBytes = dims[0]*sizeof(epicsInt32);
 
     /* Get the current time */
     epicsTimeGetCurrent(&timeStamp); 
@@ -1334,21 +1334,6 @@ mythen::mythen(const char *portName, const char *IPPortName,
     status |= getFirmware();
     status |= setStringParam (SDFirmwareVersion, firmwareVersion_);
     
-    int sensorSizeX = MAX_DIMS;
-    int  sensorSizeY = 1;
-    status |= setIntegerParam(ADMaxSizeX, sensorSizeX);
-    status |= setIntegerParam(ADMaxSizeY, sensorSizeY);
-
-    int minX,  minY, sizeX, sizeY; 
-    minX = 1; minY = 1; sizeX = MAX_DIMS; sizeY = 1; 
-    status |= setIntegerParam(ADMinX,  minX);
-    status |= setIntegerParam(ADMinY,  minY);
-    status |= setIntegerParam(ADSizeX, sizeX);
-    status |= setIntegerParam(ADSizeY, sizeY);
-
-    status |= setIntegerParam(NDArraySize, 0);
-    status |= setIntegerParam(NDDataType,  NDInt32);
-
     status |= setIntegerParam(ADImageMode, ADImageSingle);
 
     /* NOTE: these char type waveform record could not be initialized in iocInit 
@@ -1378,6 +1363,21 @@ mythen::mythen(const char *portName, const char *IPPortName,
     status |= setIntegerParam(SDNModules, aux);
     detArray_ = (epicsInt32*) calloc(this->nmodules*1280, sizeof(epicsInt32));
     tmpArray_ = (epicsUInt32*) calloc(this->nmodules*1280, sizeof(epicsInt32));
+
+    int sensorSizeX = this->nmodules*MAX_DIMS;
+    int  sensorSizeY = 1;
+    status |= setIntegerParam(ADMaxSizeX, sensorSizeX);
+    status |= setIntegerParam(ADMaxSizeY, sensorSizeY);
+
+    int minX,  minY, sizeX, sizeY;
+    minX = 1; minY = 1; sizeX = this->nmodules*MAX_DIMS; sizeY = 1;
+    status |= setIntegerParam(ADMinX,  minX);
+    status |= setIntegerParam(ADMinY,  minY);
+    status |= setIntegerParam(ADSizeX, sizeX);
+    status |= setIntegerParam(ADSizeY, sizeY);
+
+    status |= setIntegerParam(NDArraySize, sizeX*sizeof(epicsInt32));
+    status |= setIntegerParam(NDDataType,  NDInt32);
 
     callParamCallbacks();
 

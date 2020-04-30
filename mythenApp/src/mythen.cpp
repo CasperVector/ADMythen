@@ -866,8 +866,9 @@ void mythen::acquisitionTask()
             // setStringParam(ADStatusMessage, "Acquiring data");
             // setIntegerParam(ADNumImagesCounter, 0);
               // getIntegerParam(ADAcquire, &acquire);
-              
-                  
+            getDoubleParam(ADAcquireTime, &acquireTime);
+            epicsThreadSleep(acquireTime);
+
               //printf("Read Mode: %d\tnModules: %d\t chanperline: %d\n", readmode_,this->nmodules,chanperline_);
             if (readmode_==0)       //Raw Mode
                 nread_expect = sizeof(epicsInt32)*this->nmodules*(1280/chanperline_);
@@ -880,8 +881,6 @@ void mythen::acquisitionTask()
             setIntegerParam(ADStatus, eventStatus);
 
             if (eventStatus!=ADStatusError) {
-
-              getDoubleParam(ADAcquireTime,&acquireTime);
               // printf("Acquisition start - expect %d\n",nread_expect);
               // Work on the cases of what are you getting from getstatus
               do {
@@ -892,10 +891,10 @@ void mythen::acquisitionTask()
                   strcpy(outString_, "-readout");
 
                 status = pasynOctetSyncIO->writeRead(pasynUserMeter_, outString_, strlen(outString_), (char *)detArray_,
-                                        nread_expect, M1K_TIMEOUT+acquireTime, &nwrite, &nread, &eomReason);  //Timeout is M1K_TIMEOUT + AcquireTime
+                                        nread_expect, M1K_TIMEOUT, &nwrite, &nread, &eomReason);
 
                 //printf("nread_expected=%d, nread=%d, status=%d, timeout=%f, eomReason=%d\n",
-                //        (int)nread_expect, (int)nread, status, M1K_TIMEOUT+acquireTime, eomReason);
+                //        (int)nread_expect, (int)nread, status, M1K_TIMEOUT, eomReason);
 
                 if(nread == nread_expect) {
                     this->lock();

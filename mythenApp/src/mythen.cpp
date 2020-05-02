@@ -956,7 +956,7 @@ epicsInt32 mythen::dataCallback(epicsInt32 *pData)
 {
     NDArray *pImage; 
     int ndims = 1;
-    size_t dims[2];
+    size_t dims[1];
     int totalBytes; 
     int arrayCallbacks;
     int imageCounter;
@@ -968,14 +968,13 @@ epicsInt32 mythen::dataCallback(epicsInt32 *pData)
     if (pData == NULL || pData[0] < 0) return(0); 
 
     dims[0] = this->nmodules*MAX_DIMS;
-    dims[1] = 1;
     totalBytes = dims[0]*sizeof(epicsInt32);
 
     /* Get the current time */
     epicsTimeGetCurrent(&timeStamp); 
 
     /* Allocate a new image buffer */
-    pImage = this->pNDArrayPool->alloc(ndims, dims, NDInt32, totalBytes, NULL);
+    pImage = this->pNDArrayPool->alloc(ndims, dims, NDUInt32, totalBytes, NULL);
     if (readmode_==0)
       decodeRawReadout(this->nmodules, this->nbits_, pData, (int *)pImage->pData);
     else
@@ -986,9 +985,6 @@ epicsInt32 mythen::dataCallback(epicsInt32 *pData)
     pImage->dims[0].size = dims[0]; 
     pImage->dims[0].offset = 0; 
     pImage->dims[0].binning = 1; 
-    pImage->dims[1].size = dims[1]; 
-    pImage->dims[1].offset = 0; 
-    pImage->dims[1].binning = 1; 
 
     pImage->pAttributeList->add("ColorMode", "Color Mode", NDAttrInt32, &colorMode);
 
@@ -1047,7 +1043,7 @@ void mythen::decodeRawReadout(int nmods, int nbits, int *data, int *result)
   }
 
   int size = 1280/chanperline*nmods;
-  memcpy(tmpArray_, data, size*sizeof(int)); // unsigned int32
+  memcpy(tmpArray_, data, size*sizeof(epicsInt32)); // unsigned int32
   for (int j = 0; j < chanperline; j++) {
       int shift = nbits*j;
       int shiftedMask = mask<<shift;
@@ -1364,20 +1360,12 @@ mythen::mythen(const char *portName, const char *IPPortName,
     detArray_ = (epicsInt32*) calloc(this->nmodules*1280, sizeof(epicsInt32));
     tmpArray_ = (epicsUInt32*) calloc(this->nmodules*1280, sizeof(epicsInt32));
 
-    int sensorSizeX = this->nmodules*MAX_DIMS;
-    int  sensorSizeY = 1;
-    status |= setIntegerParam(ADMaxSizeX, sensorSizeX);
-    status |= setIntegerParam(ADMaxSizeY, sensorSizeY);
-
-    int minX,  minY, sizeX, sizeY;
-    minX = 1; minY = 1; sizeX = this->nmodules*MAX_DIMS; sizeY = 1;
+    int minX = 0, sizeX = this->nmodules*MAX_DIMS;
+    status |= setIntegerParam(ADMaxSizeX, sizeX);
     status |= setIntegerParam(ADMinX,  minX);
-    status |= setIntegerParam(ADMinY,  minY);
     status |= setIntegerParam(ADSizeX, sizeX);
-    status |= setIntegerParam(ADSizeY, sizeY);
-
     status |= setIntegerParam(NDArraySize, sizeX*sizeof(epicsInt32));
-    status |= setIntegerParam(NDDataType,  NDInt32);
+    status |= setIntegerParam(NDDataType,  NDUInt32);
 
     callParamCallbacks();
 

@@ -91,9 +91,7 @@ public:
     virtual void report(FILE *fp, int details); 
 
     epicsInt32 dataCallback(epicsInt32 *pData); /* This should be private but is called from C so must be public */
-    void pollTask(); 
     void acquisitionTask(); 
-    void shutdown(); 
  
  protected:
     int SDSetting;
@@ -110,7 +108,6 @@ public:
     int SDNumCycles; 
     int SDNumFrames; 
     int SDTrigger;
-    int SDReset;
     int SDTau;
     int SDFirmwareVersion;
     int SDReadMode;
@@ -131,10 +128,8 @@ public:
     virtual asynStatus setEnergy(epicsFloat64 value);
     virtual asynStatus setTau(epicsFloat64 value);
     virtual asynStatus setFrames(epicsInt32 value);
-    virtual asynStatus setFlip(epicsInt32 value);
     virtual asynStatus setTrigger(epicsInt32 value);
     virtual asynStatus loadSettings(epicsInt32 value);
-    virtual asynStatus setReset();
     virtual asynStatus getSettings();
     virtual epicsInt32  getStatus();
     virtual asynStatus getFirmware();
@@ -554,16 +549,6 @@ epicsInt32 mythen::getStatus()
 
 
 /**Enables or disables the flipping of the channel numbering. **/
-asynStatus mythen::setFlip(epicsInt32 value)
-{
-    asynStatus status;
-
-    epicsSnprintf(outString_, sizeof(outString_), "-flipchannels %d", value);
-    status = sendCommand();
-    return status;
-}
-
-/**Enables or disables the flipping of the channel numbering. **/
 asynStatus mythen::setBitDepth(epicsInt32 value)
 {
     asynStatus status;
@@ -654,27 +639,6 @@ asynStatus mythen::loadSettings(epicsInt32 value)
 
     return status;
 }
-
-/**Sets the detector back to default settings. This command takes
-about two seconds per module.**/
-asynStatus mythen::setReset()
-{
-    asynStatus status=asynSuccess;
-    epicsInt32 i=0;
-
-    setIntegerParam(SDReset,1);
-    for(i=0;i<this->nmodules;i++) {
-        epicsSnprintf(outString_, sizeof(outString_), "-module %d",i);
-        status = sendCommand();
-
-        strcpy(outString_, "-reset");
-        status = sendCommand();
-    }
-    setIntegerParam(SDReset,0);
-    callParamCallbacks();
-    return status;
-}
-
 
 /** Reads the values of all the modules parameters, sets them in the parameter library**/
 asynStatus mythen::getSettings()
@@ -795,45 +759,10 @@ asynStatus mythen::getSettings()
     return asynError;
 }
 
-
-//static void c_shutdown(void* arg) {
-//    mythen *p = (mythen*)arg;
-//    p->shutdown(); 
-//}
-
-
 void acquisitionTaskC(void *drvPvt)
 {
     mythen *pPvt = (mythen*)drvPvt; 
     pPvt->acquisitionTask(); 
-}
-
-void pollTaskC(void *drvPvt)
-{
-    mythen *pPvt = (mythen*)drvPvt; 
-    pPvt->pollTask(); 
-}
-
-void mythen::shutdown()
-{
-  //    if (pDetector)
-  //        delete pDetector; 
-}
-
-void mythen::pollTask()
-{
-    // int acquire; 
-    /* Poll detector running status every second*/
-    while (1) {
-        epicsThreadSleep(1); 
-
-        /* Update detector status */
-        this->lock(); 
-        // int detStatus = pDetector->getDetectorStatus();
-        // setIntegerParam(ADStatus, detStatus);
-        callParamCallbacks(); 
-        this->unlock(); 
-    }
 }
 
 void mythen::acquisitionTask()
@@ -1143,8 +1072,6 @@ asynStatus mythen::writeInt32(asynUser *pasynUser, epicsInt32 value)
         status |= setFrames(value);
       } else if (function == SDTrigger) {
         status |= setTrigger(value);
-      } else if (function == SDReset) {
-        status |= setReset();
       } else if (function == ADImageMode) {
 
         //getIntegerParam(SDNumFrames, &frames_);
@@ -1318,7 +1245,6 @@ mythen::mythen(const char *portName, const char *IPPortName,
     createParam(SDNumGatesString,         asynParamInt32,   &SDNumGates); 
     createParam(SDNumFramesString,        asynParamInt32,   &SDNumFrames); 
     createParam(SDTriggerString,          asynParamInt32,   &SDTrigger);
-    createParam(SDResetString,            asynParamInt32,   &SDReset);
     createParam(SDTauString,              asynParamFloat64, &SDTau); 
     createParam(SDNModulesString,         asynParamInt32,   &SDNModules); 
     createParam(SDFirmwareVersionString,  asynParamOctet,   &SDFirmwareVersion);
@@ -1374,22 +1300,12 @@ mythen::mythen(const char *portName, const char *IPPortName,
         return;
     }
 
-    /* Register the shutdown function for epicsAtExit */
-    // epicsAtExit(c_shutdown, (void*)this); 
-
     /* Create the thread that runs acquisition */
     status = (epicsThreadCreate("acquisitionTask",
                                 epicsThreadPriorityMedium,
                                 epicsThreadGetStackSize(epicsThreadStackMedium),
                                 (EPICSTHREADFUNC)acquisitionTaskC,
                                 this) == NULL);
-
-    /* Create the thread that polls status */
-    //    status = (epicsThreadCreate("pollTask",
-    //                                epicsThreadPriorityMedium,
-    //                                epicsThreadGetStackSize(epicsThreadStackMedium),
-    //                                (EPICSTHREADFUNC)pollTaskC,
-    //                                this) == NULL);
 }
 
 /* Code for iocsh registration */

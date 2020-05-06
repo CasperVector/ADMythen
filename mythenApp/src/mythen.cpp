@@ -774,7 +774,6 @@ void mythen::acquisitionTask()
     epicsInt32 acquire, eomReason;
     double acquireTime;
     asynStatus status = asynSuccess;
-    int dataOK;
 
     static const char *functionName = "acquisitionTask";
     this->lock(); 
@@ -804,12 +803,10 @@ void mythen::acquisitionTask()
             else
                 nread_expect = sizeof(epicsInt32)*this->nmodules*(1280);
                 
-            dataOK = 1;
-
             eventStatus = getStatus();
             setIntegerParam(ADStatus, eventStatus);
 
-            if (eventStatus!=ADStatusError) {
+            if ((eventStatus==ADStatusAcquire||eventStatus==ADStatusReadout) && acquiring_) {
               // printf("Acquisition start - expect %d\n",nread_expect);
               // Work on the cases of what are you getting from getstatus
               do {
@@ -833,13 +830,10 @@ void mythen::acquisitionTask()
 
                 if(nread == nread_expect) {
                     this->lock();
-                    dataOK = dataCallback(detArray_);
+                    dataCallback(detArray_);
                     this->unlock();
-                    if (!dataOK) {
-                        eventStatus = getStatus();
-                        setIntegerParam(ADStatus, eventStatus);
-                    }
-
+                    eventStatus = getStatus();
+                    setIntegerParam(ADStatus, eventStatus);
                 }
                 else {
                     eventStatus = getStatus();
@@ -894,7 +888,7 @@ epicsInt32 mythen::dataCallback(epicsInt32 *pData)
 
     // printf ("pData[0] = %X\n",pData[0]);
 
-    if (pData == NULL || pData[0] < 0) return(0); 
+    if (pData == NULL || (readmode_ != 0 && pData[0] < 0)) return(0);
 
     dims[0] = this->nmodules*MAX_DIMS;
     totalBytes = dims[0]*sizeof(epicsInt32);

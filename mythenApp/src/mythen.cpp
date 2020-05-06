@@ -803,51 +803,40 @@ void mythen::acquisitionTask()
             else
                 nread_expect = sizeof(epicsInt32)*this->nmodules*(1280);
                 
-            eventStatus = getStatus();
-            setIntegerParam(ADStatus, eventStatus);
+            while (1) {
+              eventStatus = getStatus();
+              setIntegerParam(ADStatus, eventStatus);
+              if (!((eventStatus==ADStatusAcquire||eventStatus==ADStatusReadout) && acquiring_)) break;
 
-            if ((eventStatus==ADStatusAcquire||eventStatus==ADStatusReadout) && acquiring_) {
-              // printf("Acquisition start - expect %d\n",nread_expect);
-              // Work on the cases of what are you getting from getstatus
-              do {
-                size_t thisRead=1;
-                nread=0;
-                if (readmode_==0)
-                  strcpy(outString_, "-readoutraw");
-                else
-                  strcpy(outString_, "-readout");
+              size_t thisRead=1;
+              nread=0;
+              if (readmode_==0)
+                strcpy(outString_, "-readoutraw");
+              else
+                strcpy(outString_, "-readout");
 
-                status = pasynOctetSyncIO->flush(pasynUserMeter_);
-                if (status == asynSuccess) status = pasynOctetSyncIO->write
-                  (pasynUserMeter_, outString_, strlen(outString_), M1K_TIMEOUT, &nwrite);
-                while (status == asynSuccess && thisRead && nread < nread_expect) {
-                  status = pasynOctetSyncIO->read(pasynUserMeter_, (char *)detArray_ + nread,
-                    nread_expect - nread, M1K_TIMEOUT, &thisRead, &eomReason);
-                  nread += thisRead;
-                }
-                //printf("nread_expected=%d, nread=%d, status=%d, timeout=%f, eomReason=%d\n",
-                //        (int)nread_expect, (int)nread, status, M1K_TIMEOUT, eomReason);
+              status = pasynOctetSyncIO->flush(pasynUserMeter_);
+              if (status == asynSuccess) status = pasynOctetSyncIO->write
+                (pasynUserMeter_, outString_, strlen(outString_), M1K_TIMEOUT, &nwrite);
+              while (status == asynSuccess && thisRead && nread < nread_expect) {
+                status = pasynOctetSyncIO->read(pasynUserMeter_, (char *)detArray_ + nread,
+                  nread_expect - nread, M1K_TIMEOUT, &thisRead, &eomReason);
+                nread += thisRead;
+              }
+              //printf("nread_expected=%d, nread=%d, status=%d, timeout=%f, eomReason=%d\n",
+              //        (int)nread_expect, (int)nread, status, M1K_TIMEOUT, eomReason);
+              if(status != asynSuccess) {
+                  asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
+                        "%s:%s: error using readout command status=%d, nRead=%d, eomReason=%d\n",
+                        driverName, functionName, status, (int)nread, eomReason);
+              }
 
-                if(nread == nread_expect) {
-                    this->lock();
-                    dataCallback(detArray_);
-                    this->unlock();
-                    eventStatus = getStatus();
-                    setIntegerParam(ADStatus, eventStatus);
-                }
-                else {
-                    eventStatus = getStatus();
-                    setIntegerParam(ADStatus, eventStatus);
-                  //printf("Data not size expected ADStatus: %d\n",eventStatus);
-                }
-                if(status != asynSuccess) {
-                    asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
-                          "%s:%s: error using readout command status=%d, nRead=%d, eomReason=%d\n",
-                          driverName, functionName, status, (int)nread, eomReason);
-                }
-              } 
-              while (status == asynSuccess && (eventStatus==ADStatusAcquire||eventStatus==ADStatusReadout) && acquiring_);
-             
+              if(nread == nread_expect && detArray_ != NULL && (readmode_ == 0 || detArray_[0] >= 0)) {
+                  this->lock();
+                  dataCallback(detArray_);
+                  this->unlock();
+              }
+              //else printf("Data not size expected ADStatus: %d\n",eventStatus);
            }
            this->lock();
             
@@ -885,10 +874,6 @@ epicsInt32 mythen::dataCallback(epicsInt32 *pData)
     int imageCounter;
     epicsTimeStamp timeStamp; 
     epicsInt32 colorMode = NDColorModeMono;
-
-    // printf ("pData[0] = %X\n",pData[0]);
-
-    if (pData == NULL || (readmode_ != 0 && pData[0] < 0)) return(0);
 
     dims[0] = this->nmodules*MAX_DIMS;
     totalBytes = dims[0]*sizeof(epicsInt32);
